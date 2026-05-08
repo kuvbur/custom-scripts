@@ -2,6 +2,22 @@ import pyautogui
 import time
 import aclib
 
+
+def activate_window_by_title(title):
+    windows = pyautogui.getWindowsWithTitle(title)
+    if not windows:
+        return False
+    for win in windows:
+        try:
+            win.activate()
+            return True
+        except PyGetWindowException as e:
+            if "Error code from Windows: 0" in str(e):
+                return True
+            else:
+                continue
+    return False
+
 def get_navigator_item_guids_from_tree(current_branch, navigator_item_guids, navigator_item_type):
     for navigator_item in current_branch:
         navigator_item = navigator_item['navigatorItem']
@@ -22,23 +38,24 @@ def get_layout(subsets,suffix = '-dwg'):
     return [{'navigatorItemId': guid} for guid in layout_guids]
 
 def explode_selected():
+    activate_window_by_title("archicad")
     active_window = pyautogui.getActiveWindow()
     if active_window:
-        active_window.activate()
-        time.sleep(1)
         pyautogui.hotkey('ctrl', '=')
-        time.sleep(1)
+        time.sleep(2)
         pyautogui.hotkey('enter')
-        print(f"Сочетание отправлено в окно: {active_window.title}")
+        time.sleep(3)
+        pyautogui.hotkey('esc')
+        time.sleep(1)
     else:
         print("Активное окно не найдено")
 
 def explode_drawingsonlayout(databaseId):
     windows = aclib.RunTapirCommand(command='ChangeWindow',
                                     parameters={'windowType': 'Layout',
-                                                'databaseId': databaseId})['success']
+                                                'databaseId': databaseId})
     time.sleep(1)
-    if windows:
+    if windows['success']:
         drawings = aclib.RunTapirCommand(command='GetElementsByType',
                                         parameters={'elementType': 'Drawing',
                                                     'databases': databaseId} )['elements']
@@ -46,8 +63,7 @@ def explode_drawingsonlayout(databaseId):
             select = aclib.RunTapirCommand ('ChangeSelectionOfElements', {'addElementsToSelection': [drawing]})['executionResultsOfAddToSelection'][0]['success']
             if select:
                 explode_selected()
-            aclib.RunTapirCommand ('ChangeSelectionOfElements', {'addElementsToSelection': []})
-
+                time.sleep(5)
 
 navigator_tree_id = {'navigatorTreeId': {'type': 'LayoutBook'}}
 navigator_tree = aclib.RunCommand(command='API.GetNavigatorItemTree',
@@ -56,6 +72,7 @@ subsets = get_root_subsets(navigator_tree)
 layout_elements = get_layout(subsets, '-dwg')
 databases = aclib.RunTapirCommand(command='GetDatabaseIdFromNavigatorItemId',
                                   parameters={'navigatorItemIds': layout_elements}, debug=True)
+
 
 for db in databases['databases']:
     explode_drawingsonlayout(db['databaseId'])
